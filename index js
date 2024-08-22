@@ -3,6 +3,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const ytdl = require('ytdl-core');
 const fs = require('fs');
+const keep_alive = require('./keep_alive.js')
 
 // Replace with your Telegram Bot Token
 const TELEGRAM_BOT_TOKEN = '7444283265:AAE7R5xhX6q7LMN--X4C7Bq7FJIF68U3u4s';
