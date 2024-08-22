@@ -1,0 +1,95 @@
+// Requirements
+const TelegramBot = require('node-telegram-bot-api');
+const axios = require('axios');
+const ytdl = require('ytdl-core');
+const fs = require('fs');
+
+// Replace with your Telegram Bot Token
+const TELEGRAM_BOT_TOKEN = '7444283265:AAE7R5xhX6q7LMN--X4C7Bq7FJIF68U3u4s';
+const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+
+// Starter Command
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    bot.sendMessage(chatId, 'Welcome! Send /quote to receive a random quote.\n/ytinfo to recive youtube url info');
+});
+
+// Get random Quotes
+function random(from, min = 0) {
+    return Math.floor(Math.random() * from) + min;
+}
+
+async function randomQuote() {
+    const pageId = random(10);
+    const fileId = pageId * 50 + random(50, 1);
+    const file = (fileId < 10 ? "00" : fileId < 100 ? "0" : "") + fileId;
+
+    const url = `https://raw.githubusercontent.com/ravindu01manoj/Quotes-500k/master/page${pageId}/quotes-${file}-manoj.json`;
+
+    try {
+        const res = await axios.get(url);
+        const quotes = res.data.data;
+        return quotes[random(quotes.length)];
+    } catch (error) {
+        console.error('Error fetching quotes:', error.message);
+        return null;
+    }
+}
+
+// Quote command handler
+bot.onText(/\/quote/, async (msg) => {
+    const chatId = msg.chat.id;
+    const quote = await randomQuote();
+
+    if (quote) {
+        bot.sendMessage(chatId, `▫️${quote.quote}\n\n- ${quote.author} -`);
+    } else {
+        bot.sendMessage(chatId, 'Sorry, I could not fetch a quote at the moment.');
+    }
+});
+
+// Yt info command handler
+bot.onText(/\/ytinfo (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const videoUrl = match[1];
+
+    try {
+        // Get video info from YouTube
+        const info = await ytdl.getInfo(videoUrl);
+
+        // Extract video details
+        const videoDetails = info.videoDetails;
+        const durationInMinutes = Math.floor(videoDetails.lengthSeconds / 60);
+        const durationInSeconds = videoDetails.lengthSeconds % 60;
+
+        // Prepare the caption text with video details
+        const caption = `🎬 *Title*: ${videoDetails.title}\n` +
+                        `📺 *Channel*: ${videoDetails.author.name}\n` +
+                        `📅 *Publish Date*: ${videoDetails.publishDate}\n` +
+                        `👁️ *View Count*: ${videoDetails.viewCount}\n` +
+                        `⏳ *Duration*: ${durationInMinutes}:${durationInSeconds.toString().padStart(2, '0')}`;
+
+        // Download the thumbnail
+        const thumbnailUrl = videoDetails.thumbnails[videoDetails.thumbnails.length - 1].url;
+        const thumbnailPath = path.join(__dirname, `${videoDetails.title.replace(/[^a-zA-Z0-9]/g, '_')}_thumbnail.jpg`);
+
+        const response = await axios({
+            url: thumbnailUrl,
+            responseType: 'stream',
+        });
+
+        response.data.pipe(fs.createWriteStream(thumbnailPath))
+            .on('finish', () => {
+                // Send the downloaded thumbnail with the caption
+                bot.sendPhoto(chatId, thumbnailPath, { caption: caption, parse_mode: 'Markdown' });
+            })
+            .on('error', (err) => {
+                console.error('Error downloading thumbnail:', err.message);
+                bot.sendMessage(chatId, 'Failed to download the thumbnail.');
+            });
+
+    } catch (error) {
+        console.error('Error fetching video info:', error.message);
+        bot.sendMessage(chatId, 'Sorry, I could not fetch the video information. Please check the URL and try again.');
+    }
+});
